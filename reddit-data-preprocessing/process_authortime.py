@@ -9,8 +9,8 @@ def convert_time(time_val):
 author_hash = pd.read_csv('author_hash.csv')
 author_hash_dict = dict(zip(author_hash['id'],author_hash['uuid']))
 
-in_dir = 'csv_0806/full_csv_rep/'
-out_dir = 'csv_0806/converted_csv_rep/'
+in_dir = 'csv_out/full_csv/'
+out_dir = 'csv_out/converted_csv/'
 
 
 for yr in ['2022','2023']:
