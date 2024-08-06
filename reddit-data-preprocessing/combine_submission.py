@@ -67,7 +67,7 @@ def json_to_dfs(in_dir, yr, mt):
 
 
 in_dir = 'register_csv_submissions/'
-out_dir = 'csv_out/full_csv_rep/'
+out_dir = 'csv_out/full_csv/'
 
 first_occurrence_global = {}
 df_rep_list = []
