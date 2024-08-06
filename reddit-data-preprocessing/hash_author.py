@@ -2,8 +2,7 @@ import pandas as pd
 import random
 import uuid
 
-#in_dir = 'full_corrected_csv/'
-in_dir = 'full_csv3/'
+in_dir = 'csv_out/full_csv/'
 
 authors = []
 dims = 0
