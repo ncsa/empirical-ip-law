@@ -23,12 +23,12 @@ def json_to_dfs(in_dir, yr, mt):
         idx = (cols).index('wls')
         df0 = df0[cols[:idx+1]]
 
-        #key = tuple([df0['title'][0],df0['selftext'][0]])
-        key = df0['selftext'][0] 
+        #key = tuple([df0['title'][0],df0['selftext'][0]]) # matching both title and selftext
+        key = df0['selftext'][0]  # mathing selftext first
         if len(key)==0:
-            key = df0['title'][0]
+            key = df0['title'][0] # if selftext is empty, match titles
 
-        if key not in first_occurrence_local:
+        if key not in first_occurrence_local: # count repetition in the posts within this year-month
             first_local = df0['id'][0]
             first_occurrence_local[key] = first_local
         else:
@@ -36,7 +36,7 @@ def json_to_dfs(in_dir, yr, mt):
 
         df0['first_local'] = first_local
 
-        if key not in first_occurrence_global:
+        if key not in first_occurrence_global: # count repetition in the posts within our study range
             first_global = yr + '-' + mt + '_' + df0['id'][0]
             first_occurrence_global[key] = first_global
         else:
@@ -45,11 +45,17 @@ def json_to_dfs(in_dir, yr, mt):
         df0['first_global'] = first_global
 
 
-        if(len(df0['selftext'][0]))>30000:
+        if(len(df0['selftext'][0]))>30000: # reduce to make it compatible with excel cell limit
             df0['selftext']='30000+, refer ' + df0['url'][0]
-        elif(len(df0['selftext'][0]))==0:
+        elif(len(df0['selftext'][0]))==0: # make sure the empty cell doesn't create a type error
             df0['selftext']='no text' 
-        if len(df0['all_awardings'][0])>0:
+        elif(df0['selftext'][0].startswith('=')): # make sure the cell value is not converted to a function
+            df0['selftext'] = ''.join('S', df['selftext'][0])
+
+        if(df0['title'][0].startswith('=')): # make sure the cell value is not converted to a function
+            df['title'][0] = ''.join(('T',df['title'][0]))
+        
+        if len(df0['all_awardings'][0])>0: # convert awards to number.
             awarding_str = df0['all_awardings'][0]
             awarding_obj = awarding_str[0]
             coin_sum = 0
@@ -73,6 +79,7 @@ first_occurrence_global = {}
 df_rep_list = []
 file_out_list = []
 
+# process json and count repetitions within each year-month
 for yr in ['2022','2023']:
     for mt in ['01','02','03','04',
                '05','06','07','08',
@@ -86,6 +93,8 @@ for yr in ['2022','2023']:
         sel_count_local = (df_yr_mt['count_local']>1)
 
         df_yr_mt['count_local'] = df_yr_mt['count_local'].astype('str')
+
+# highlight the first ocurrences of repetitions, removed to make filtering in excel easier.
 #        sel_first_local = (df_yr_mt['id']==df_yr_mt['first_local'])
         
 #        first_local_idxs = df_yr_mt[sel_count_local & sel_first_local].index
@@ -98,9 +107,11 @@ for yr in ['2022','2023']:
         file_out = out_dir + 'RS_' + yr + '-' + mt + '_rep.csv'
         file_out_list.append(file_out)
 
+# count global repetitions
 df_full_rep = pd.concat(df_rep_list, ignore_index=True)
 dict_count_global = df_full_rep.groupby('first_global')['id'].count().to_dict()
 
+# write results in separate output files
 for ii in range(len(file_out_list)):
     df = df_rep_list[ii]
     file_name = file_out_list[ii] 
@@ -108,6 +119,8 @@ for ii in range(len(file_out_list)):
     df['count_global'] = df['first_global'].map(dict_count_global)
     sel_count_global = (df['count_global']>1)
     df['count_global'] = df['count_global'].astype('str')
+
+# highlight the first ocurrences of repetitions, removed to make filtering in excel easier.
 #    sel_first_global = ((yr + '-' + mt + '_' + df['id'])==df['first_global'])
 
 #    first_global_idxs = df[sel_count_global & sel_first_global].index 
