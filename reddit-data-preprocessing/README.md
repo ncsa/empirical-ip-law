@@ -8,7 +8,7 @@
   * unzip the .zst file
   * query keywords "copyright" and "regist", case-insensitive
   * output data in .json files
- 
+
 * combine_submissions.py
   * count repetitions in selftext and title
     * record "selftext" values. if "selftext" is empty, record "title" values
@@ -33,12 +33,13 @@
    * subset the selected columns from each csv file.
 
 * preprocessing steps
-   1. run decompress_rewrite_par.py on a cluster to obtain the .json files.
-   2. run combine_submissions.py to convert the .json files to .csv files.
-   3. run hash_author.py to create a hash table
-   4. use procee_authortime.py and the hash table created in the last process to convert author and time formats.
-   5. manually modify the col_sel.txt file, run subset.py to create clear csv files.
+   1. run decompress_rewrite_par.py on a cluster to obtain the .json files. Manually scp and move the .json files in local directory register_csv_submissions/ (currently calling it this name because we are looking at "copyright registration")
+   2. create output directory csv_out, under it, create directories: full_csv, converted_csv, and subset
+   3. run combine_submissions.py to convert the .json files to .csv files.
+   4. run hash_author.py to create a hash table
+   5. use procee_authortime.py and the hash table created in the last process to convert author and time formats.
+   6. manually modify the col_sel.txt file, run subset.py to create clear csv files.
  
-* excel macros to make things easier (not stored here due to protection)
+* excel macros to make things easier (not shared here due to protection, but easy to generate with ChatGPT)
    * the macro to highlight keywords in selected columns
    * the macro for multiple choice.
