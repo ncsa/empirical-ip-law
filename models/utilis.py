@@ -1,5 +1,6 @@
 import pandas as pd
 import openpyxl
+from bs4 import BeautifulSoup
 import json
 import os.path
 
@@ -9,7 +10,7 @@ def dir_valid(input_dir):
     input_dir = input_dir + '/'
   return input_dir
 
-# workbook should be converted to .xlsx and xlm formats
+# workbook should be converted to .xlsx and xml formats
 # also include .json files to paste back long selftexts
 # additionally, there will be .docx files including underlined texts in long selftext
 
@@ -36,7 +37,35 @@ def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
 
   return df_body
 
-# .xlm, get underlined texts in selftext
+# .xml, get underlined texts in selftext
+def extract_font(input_dir, file_unit, col_num = 3):
+  
+  input_dir = dir_valid(input_dir)
+
+  file = open(input_dir + file_unit + '.xml', 'r')
+
+  # parsing
+  soup = BeautifulSoup(contents, 'xml')
+ 
+  # iterate over rows
+  rows = soup.find_all('Row')
+
+  underline_list = []
+  for row in rows:
+    # selftext is on column D, therefore col_num = 4-1 = 3
+    cells = row.find_all('Cell')
+    if len(cells)<4:
+      sel_texts = ''
+    else:
+      cell_selftext = cells[col_num]
+      # identify texts enclosed in <Font><U> ... </Font></U>
+      underlined = cell_selftext.find_all('U')
+      sel_texts = ' '.join([x.text for x in underlined]) # need to find a better separater
+    underlined_list.append(sel_texts)
+    df = pd.DataFrame()
+    df['underlined'] = pd.Series(underlined_list)
+    return df
+  
 
 # .json, get long selftexts
 
