@@ -1,5 +1,5 @@
 import pandas as pd
-import openpyxl
+import openpyxl # since not dealing with format, just use pandas. change the functions later
 from bs4 import BeautifulSoup
 import docx
 import json
