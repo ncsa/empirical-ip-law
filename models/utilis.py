@@ -5,6 +5,16 @@ import docx
 import json
 import os.path
 
+import torch
+from torch.utils.data import TensorDataset
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from datasets import Dataset
+
+from transformers import TrainingArguments
+from transformers import Trainer
+
+from scikit-learn import train_test_split
+
 # make sure dir names is end with one '/'. 
 def dir_valid(input_dir):
   if input_dir[-1]!='/':
@@ -160,7 +170,162 @@ def df_annotation_combine(yr, mt, input_xlsx_dir, input_xml_dir, input_json_dir,
 
 
 # descriptive stats function to produce figures
+# some requires combined all yr and mt
 
-# tokenization with LLMs
+# model tokenization
+# separate X and y
+# title + selftext -> prediction
+# title + selftext -> highlight, notes -> prediction
+# tokenize with weight when combination is needed
+def tokenize_and_weight(text, tokenizer, weight, max_length=128):
+  encodings = tokenizer(texts, truncation=True, padding=True, max_length=max_length, return_tensors='pt')
+  input_ids = encodings['input_ids']
+  attention_mask = encodings['attention_mask']
+    
+  # Apply weight to tokenized representations
+  weighted_input_ids = input_ids * weight
+  return {'input_ids': weighted_input_ids, 'attention_mask': attention_mask}
+
+def combine_tokens(tokenizer, df, col_list, weight_list, max_length=128):
+  tok_input_id_list = []
+  tok_attention_mask_list = []
+  for ii in len(weight_list):
+    tokenized_X = tokenize_and_weight(df[col[ii]], tokenizer, weight_list[ii])
+    tok_input_id_list.append(tokenized_X['input_ids'])
+    tok_attention_mask_list.append(tokenized_X['attention_mask'])
+
+  input_ids_combined = torch.cat(tok_input_id_list, dim=1)
+  attention_mask_combined = torch.cat(tok_attention_mask_list, dim=1)
+
+# tokenize X1
+X1 = combine_tokens(tokenizer, df, ['title', 'selftext'], [1.0,1.0])
+X2 = combine_tokens(tokenizer, df, ['underlined', 'notes'], [1.0, 1.0])
+y = combined_tokens(tokenizer, df, ['misconceptions', 'unclear knowledge'], [1.0, 1.0])
+
 
 # train-val-test set splitting - random vs masked output
+
+
+# train/val/test, rnd_..._data.pth, msk_..._data.pth
+def run_model_data(model_name, dict_data_path):
+  # Load tokenizer and model
+  tokenizer = AutoTokenizer.from_pretrained(model_name)
+  model = AutoModelForCausalLM.from_pretrained(model_name)
+
+  train_data_path = dict_data_path['train']
+  val_data_path = dict_data_path['val']
+  test_dataa_path = dict_data_path['test']
+
+  # load data
+  train_data = torch.load(train_data_path)
+  val_data = torch.load(val_data_path)
+  test_data = torch.load(test_data_path)
+
+  # extract data
+  X_train_input_ids = train_data['X_train_input_ids']
+  X_train_attention_mask = train_data['X_train_attention_mask']
+  y_train_input_ids = train_data['y_train_input_ids']
+  y_train_attention_mask = train_data['y_train_attention_mask']
+
+  X_val_input_ids = train_data['X_val_input_ids']
+  X_val_attention_mask = train_data['X_val_attention_mask']
+  y_val_input_ids = train_data['y_val_input_ids']
+  y_val_attention_mask = train_data['y_val_attention_mask']
+
+  X_test_input_ids = train_data['X_test_input_ids']
+  X_test_attention_mask = train_data['X_test_attention_mask']
+  y_test_input_ids = train_data['y_test_input_ids']
+  y_test_attention_mask = train_data['y_test_attention_mask']
+
+
+  # read training args from file_arg_path
+  # read data
+  trainer = Trainer(
+    model = model_name, 
+    args = training_args,
+    training_dataset = train_dataset,
+    eval_dataset = val_dataset
+  )
+  trainer.train()
+  results = trainer.evaluate()
+  ## save results
+  preds = trainer.predict(X_test_dataset)
+  ## save preds
+  ## save model
+  model.save_pretrained(out_dir_path + 'model')
+  tokenizer.save_pretrained(out_dir_path + 'model')
+
+# prompting
+# create prompt
+# dict_split: indices of train, val, test - random splitting or masked splitting
+# in create_prompt, use train set
+def create_prompt(title, selftext, df):
+  prompt = "Here are some examples:\n"
+  for idx, row in df.iterrows():
+    ex_title = row['title']
+    ex_selftext = row['selftext']
+    ex_relevance = row['Relevant']
+
+    prompt += f"Title: {ex_title}\nSelftext: {ex_selftext}\n"
+
+    ex_underline = row['underline']
+    ex_note = row['note']
+    # what does the background column mean? ask Xiaoren
+    ex_bg = row['Background'] 
+    # shall i include jurisdiction col?
+    ex_ju = row['Jursidictions']
+
+    if len(ex_underline)>0:
+      prompt += f"We focused in the part in selftext: {ex_underline}\n"
+    if len(ex_note)>0:
+      prompt += f"We noted from selftext: {ex_note}\n"
+    if len(ex_bg)>0:
+      prompt += f"Background is {ex_bg}:\n"
+    if len(ex_ju)>0:
+      prompt += f"According to jurisdiction in {ex_ju}\n"
+    
+    if ex_relevance.contains('irrelevant'):
+      ex_conclusion='irrelevant'
+    else:
+      ex_misconception = row['misconception']
+      ex_vagueknowledge = row['unclear knowledge']
+    ex_conclusion = f"misconception: {ex_misconception}; unclear knowledge: {ex_vagueknowledge}\n\n"
+    prompt += "Conclusion:"
+
+  prompt += f"With Title: {title}\n and Selftext: {selftext}, what do we know?"
+  prompt += "order results in focused_part, note, conclusion, background"
+  # or prompt to show focused_part and note first
+  # create two different versions of last prompting: with title and selftext:
+  # 1. what is the conclusion?
+  # 2. what part in selftext is focused part? what note can we taken? what is the background?
+  #    then, what is the conclusion?
+  # add the end: show results in tabulated format
+  # or, another way is to make focused part, note, and background as result
+  # then, write another prompt function, from focus, note, bg, derive conclusion
+  return prompt
+
+def generate_conclusion(title, text, model, tokenizer, examples):
+  # create the prompt
+  # tokenize the prompt -> can i save the example prompts and then add the last line in the prompt?
+  inputs = tokenizer(prompt, return_tensors='pt', padding=True, truncation=True)
+
+  # Generate the output
+  with torch.no_grad():
+    outputs = model.generate(
+      inputs['input_ids'],
+      attention_mask=inputs['attention_mask'],
+      max_length=200,  # Adjust based on expected output length
+      num_beams=5,     # Number of beams for beam search
+      early_stopping=True
+  )
+
+  # Decode and return the result
+  conclusion = tokenizer.decode(outputs[0], skip_special_tokens=True)
+  return conclusion
+  
+def run_conclusions(df_val, model, tokenizer, df_train):
+  for idx, row in df_val.iterrows:
+    title = row['title']
+    text = row['selftext']
+    conclusion = generage_conclusion(title, text, model, tokenizer, df_train)
+    print(conclusion) # or save result in table.
