@@ -43,7 +43,7 @@ def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
 
   # convert to dataframe
   df = pd.DataFrame(ws.values).loc[:,0:ncol_sel]
-  df_header = df.iloc[0]
+  df_header = df.iloc[0].str.lower() # change header to lower case
 
   # remove tailing space in col names
   df_header = [x.strip() for x in df_header]
@@ -52,7 +52,9 @@ def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
 
   # fill NA with 'n/a'
   df_body = df_body.fillna('n/a')
-  # replace "#" with 'n/a'
+  # replace "#" with 'n/a' 
+  # "#" is a temporary option, where annotators are not sure what to put in
+  # "#" won't exist in the final annotations.
   df_body = df_body.mask((df_body=='#'), 'n/a')
 
   return df_body
@@ -197,10 +199,12 @@ def combine_tokens(tokenizer, df, col_list, weight_list, max_length=128):
   input_ids_combined = torch.cat(tok_input_id_list, dim=1)
   attention_mask_combined = torch.cat(tok_attention_mask_list, dim=1)
 
-# tokenize X1
+# tokenize X and y
 X1 = combine_tokens(tokenizer, df, ['title', 'selftext'], [1.0,1.0])
-X2 = combine_tokens(tokenizer, df, ['underlined', 'notes'], [1.0, 1.0])
+X2 = combine_tokens(tokenizer, df, ['underlined', 'notes', 'background'], [1.0, 1.0, 1.0])
+X3 = combined_tokens(tokenizer, df, ['jurisdiction', "poster's legal status", 'category'], [1.0, 1.0])
 y = combined_tokens(tokenizer, df, ['misconceptions', 'unclear knowledge'], [1.0, 1.0])
+
 
 
 # train-val-test set splitting - random vs masked output
