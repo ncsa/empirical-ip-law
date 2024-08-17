@@ -1,5 +1,4 @@
 import pandas as pd
-import openpyxl # since not dealing with format, just use pandas. change the functions later
 from bs4 import BeautifulSoup
 import docx
 import json
@@ -13,7 +12,7 @@ from datasets import Dataset
 from transformers import TrainingArguments
 from transformers import Trainer
 
-from scikit-learn import train_test_split
+from sklearn import train_test_split
 
 # make sure dir names is end with one '/'. 
 def dir_valid(input_dir):
@@ -38,26 +37,24 @@ def get_file_unit(yr, mt, header='RS_'):
 # ncol_sel defaulted to 12 columns, set to 16 when duplicate text count cols are included
 def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
   input_dir = dir_valid(input_dir)
-  wb = openpyxl.load_workbook(input_dir + file_unit + '.xlsx')
-  ws = wb[sel_sheet]
+  df = pd.read_excel(input_dir + file_unit + '.xlsx', 
+    sheet_name = sel_sheet, 
+    header=1,
+    usecols=0:ncol_sel)
 
-  # convert to dataframe
-  df = pd.DataFrame(ws.values).loc[:,0:ncol_sel]
-  df_header = df.iloc[0].str.lower() # change header to lower case
-
-  # remove tailing space in col names
-  df_header = [x.strip() for x in df_header]
-  df_body = df[1:]
-  df_body.columns = df_header
+  # change header to lower case and remove tailing spaces
+  df_header = df.columns.to_list()
+  df_new_header = [x.strip().lower() for x in df_header]
+  df.rename(dict(zip(df_header, df_new_header)), inplace=True)
 
   # fill NA with 'n/a'
-  df_body = df_body.fillna('n/a')
+  df = df.fillna('n/a')
   # replace "#" with 'n/a' 
   # "#" is a temporary option, where annotators are not sure what to put in
   # "#" won't exist in the final annotations.
-  df_body = df_body.mask((df_body=='#'), 'n/a')
+  df = df.mask((df=='#'), 'n/a')
 
-  return df_body
+  return df
 
 # .xml, get underlined texts in selftext
 def find_xml_underline(input_dir, file_unit, col_num = 3):
@@ -162,9 +159,9 @@ def df_annotation_combine(yr, mt, input_xlsx_dir, input_xml_dir, input_json_dir,
   # put long selftexts and its underlines into the dataframe
   for idx, item in df_texts.iterrows():
     id0 = item['id']
-      if id0 in idx_long:
-        df_texts.at[idx, 'sefltext'] = map_long['dict_selftext'][id0]
-        df_texts.at[idx, 'underlined'] = map_long['dict_underline'][id0]
+    if id0 in idx_long:
+      df_texts.at[idx, 'sefltext'] = map_long['dict_selftext'][id0]
+      df_texts.at[idx, 'underlined'] = map_long['dict_underline'][id0]
 
   # read and pad covariates
   df_cov = read_cov(input_cov_dir, file_unit)
@@ -204,7 +201,6 @@ X1 = combine_tokens(tokenizer, df, ['title', 'selftext'], [1.0,1.0])
 X2 = combine_tokens(tokenizer, df, ['underlined', 'notes', 'background'], [1.0, 1.0, 1.0])
 X3 = combined_tokens(tokenizer, df, ['jurisdiction', "poster's legal status", 'category'], [1.0, 1.0])
 y = combined_tokens(tokenizer, df, ['misconceptions', 'unclear knowledge'], [1.0, 1.0])
-
 
 
 # train-val-test set splitting - random vs masked output
