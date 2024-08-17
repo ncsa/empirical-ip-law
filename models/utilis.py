@@ -195,18 +195,138 @@ def combine_tokens(tokenizer, df, col_list, weight_list, max_length=128):
 
   input_ids_combined = torch.cat(tok_input_id_list, dim=1)
   attention_mask_combined = torch.cat(tok_attention_mask_list, dim=1)
+  return {'input_ids': input_ids_combined, 'attention_mask': attention_mask_combined}
 
 # tokenize X and y
-X1 = combine_tokens(tokenizer, df, ['title', 'selftext'], [1.0,1.0])
-X2 = combine_tokens(tokenizer, df, ['underlined', 'notes', 'background'], [1.0, 1.0, 1.0])
-X3 = combined_tokens(tokenizer, df, ['jurisdiction', "poster's legal status", 'category'], [1.0, 1.0])
-y = combined_tokens(tokenizer, df, ['misconceptions', 'unclear knowledge'], [1.0, 1.0])
+#X1 = combine_tokens(tokenizer, df, ['title', 'selftext'], [1.0,1.0])
+#X2 = combine_tokens(tokenizer, df, ['underlined', 'notes', 'background'], [1.0, 1.0, 1.0])
+#X3 = combined_tokens(tokenizer, df, ['jurisdiction', "poster's legal status", 'category'], [1.0, 1.0])
+#y = combined_tokens(tokenizer, df, ['misconceptions', 'unclear knowledge'], [1.0, 1.0])
+# X2 and X3 can be used as both X and y
+# we can do [X1, X2/3/both] -> y
+# or X1 -> X2/3/both -> y
+# or combined models
 
+# helper function to store paths to train_val_test splitted tokenized data
+def gen_dict_data_path(data_dir, split_type, file_header):
+  data_dir = dir_valid(data_vir)
+  for key in ['train','val','test']:
+    dict_data_path[key] = data_dir + split_type + '_' + file_header + '_' + key + '_data.pth'
+  return dict_data_path
 
 # train-val-test set splitting - random vs masked output
+# random split
+# dict_data_path = gen_dict_data_path(data_dir, 'rnd', file_header)
+def random_split(X, y, dict_data_path):
+  X_input_ids = X['input_ids']
+  X_attention_mask = X['attention_mask']
+  y_input_ids = y['input_ids']
+  y_attention_mask = y['attention_mask']
+  X_train_input_ids, X_test_input_ids, X_train_attention_mask, X_test_attention_mask, y_train_input_ids, y_test_input_ids, y_train_attention_mask, y_test_attention_mask = train_test_split(
+    X_input_ids, 
+    X_attention_mask,
+    y_input_ids,
+    y_attention_mask,
+    test_size=0.1,  # 10% test data
+    random_state=42
+  )
+  X_train_input_ids, X_val_input_ids, X_train_attention_mask, X_val_attention_mask, y_train_input_ids, y_val_input_ids, y_train_attention_mask, y_val_attention_mask = train_test_split(
+      X_train_input_ids,
+      X_train_attention_mask,
+      y_train_input_ids,
+      y_train_attention_mask,
+      test_size=0.1,  # 10% validation data
+      random_state=42
+  )
+
+  torch.save({
+      'X_train_input_ids': X_train_input_ids,
+      'X_train_attention_mask': X_train_attention_mask,
+      'y_train_input_ids': y_train_input_ids,
+      'y_train_attention_mask': y_train_attention_mask
+  }, dict_data_path['train'])
+
+  torch.save({
+      'X_val_input_ids': X_val_input_ids,
+      'X_val_attention_mask': X_val_attention_mask,
+      'y_val_input_ids': y_val_input_ids,
+      'y_val_attention_mask': y_val_attention_mask
+  }, dict_data_path['val'])
+
+  torch.save({
+      'X_test_input_ids': X_test_input_ids,
+      'X_test_attention_mask': X_test_attention_mask,
+      'y_test_input_ids': y_test_input_ids,
+      'y_test_attention_mask': y_test_attention_mask
+  }, dict_data_path['test'])
+
+
+# masked output - keep one annotation as the unknown test set to the model, see if GenAI can find it
+# specific_col: select from "misconception" and "vague knowledge". currently don't do "correct" and "irrelevant"
+# currently, do not consider the case if the cols "misconception" and "vague knowledge" are not mutually exclusive
+# probably even if they are not mutually exclusive, we can still do them.
+# or we can just verify by training on single cols of y again
+#  dict_data_path = gen_dict_data_path(data_dir, 'msk', file_header)
+
+def mask_split(X_input_ids, X_attention_mask, 
+  y_input_ids, y_attention_mask, 
+  df, specific_col, specific_value, dict_data_path):
+
+  y_list = df[specific_col].tolist()
+  test_indices = [i for i, label in enumerate(y_list) if label==specific_value]
+  train_val_indices = [i for i, label in enumerate(y_list) if label != specific_value]
+
+  X_input_ids_list = X_input_ids.tolist()
+  X_attention_mask_list = X_attention_mask.tolist()
+
+  # extract test data
+  X_test_input_ids = torch.tensor([input_ids_list[i] for i in test_indices])
+  X_test_attention_mask = torch.tensor([attention_mask_list[i] for i in test_indices])
+  y_test_input_ids = torch.tensor([y_input_ids[i] for i in test_indices])
+  y_test_attention_mask = torch.tensor([y_attention_mask[i] for i in test_indices])
+
+  # extract train-validation data
+  X_train_val_input_ids = torch.tensor([input_ids_list[i] for i in train_val_indices])
+  X_train_val_attention_mask = torch.tensor([attention_mask_list[i] for i in train_val_indices])
+  y_train_val_input_ids = torch.tensor([y_input_ids[i] for i in train_val_indices])
+  y_train_val_attention_mask = torch.tensor([y_attention_mask[i] for i in train_val_indices])
+
+  # split train validation randomly
+  X_train_input_ids, X_val_input_ids, X_train_attention_mask, X_val_attention_mask, y_train_input_ids, y_val_input_ids, y_train_attention_mask, y_val_attention_mask = train_test_split(
+    X_train_val_input_ids,
+    X_train_val_attention_mask,
+    y_train_val_input_ids,
+    y_train_val_attention_mask,
+    test_size=0.1,  # 10% validation data
+    random_state=42
+  )
+
+  torch.save({
+      'X_train_input_ids': X_train_input_ids,
+      'X_train_attention_mask': X_train_attention_mask,
+      'y_train_input_ids': y_train_input_ids,
+      'y_train_attention_mask': y_train_attention_mask
+  }, dict_data_path['train'])
+
+  torch.save({
+      'X_val_input_ids': X_val_input_ids,
+      'X_val_attention_mask': X_val_attention_mask,
+      'y_val_input_ids': y_val_input_ids,
+      'y_val_attention_mask': y_val_attention_mask
+  }, dict_data_path['test'])
+
+  torch.save({
+      'X_test_input_ids': X_test_input_ids,
+      'X_test_attention_mask': X_test_attention_mask,
+      'y_test_input_ids': y_test_input_ids,
+      'y_test_attention_mask': y_test_attention_mask
+  }, dict_data_path['val'])
+
 
 
 # train/val/test, rnd_..._data.pth, msk_..._data.pth
+# split_type = rnd or msk
+# dict_data_path = gen_dict_data_path(data_dir, split_type, file_header)
 def run_model_data(model_name, dict_data_path):
   # Load tokenizer and model
   tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -236,7 +356,6 @@ def run_model_data(model_name, dict_data_path):
   X_test_attention_mask = train_data['X_test_attention_mask']
   y_test_input_ids = train_data['y_test_input_ids']
   y_test_attention_mask = train_data['y_test_attention_mask']
-
 
   # read training args from file_arg_path
   # read data
