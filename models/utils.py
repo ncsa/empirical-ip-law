@@ -45,7 +45,7 @@ def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
   # change header to lower case and remove tailing spaces
   df_header = df.columns.to_list()
   df_new_header = [x.strip().lower() for x in df_header]
-  df.rename(dict(zip(df_header, df_new_header)), inplace=True)
+  df.rename(columns=dict(zip(df_header, df_new_header)), inplace=True)
 
   # fill NA with 'n/a'
   df = df.fillna('n/a')
