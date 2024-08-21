@@ -39,8 +39,8 @@ def load_xlsx_file(input_dir, file_unit, ncol_sel = 12, sel_sheet='Sheet1'):
   input_dir = dir_valid(input_dir)
   df = pd.read_excel(input_dir + file_unit + '.xlsx', 
     sheet_name = sel_sheet, 
-    header=1,
-    usecols=0:ncol_sel)
+    header=0,
+    usecols=range(n:colsel))
 
   # change header to lower case and remove tailing spaces
   df_header = df.columns.to_list()
