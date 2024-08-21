@@ -81,9 +81,9 @@ def find_xml_underline(input_dir, file_unit, col_num = 3):
       underlined = cell_selftext.find_all('U')
       sel_texts = ' '.join([x.text for x in underlined]) # need to find a better separater
     underlined_list.append(sel_texts)
-    df = pd.DataFrame()
-    df['underlined'] = pd.Series(underlined_list)
-    return df
+  df = pd.DataFrame()
+  df['underlined'] = pd.Series(underlined_list)
+  return df
 
 # .docx, underlined texts in long selftexts
 def find_doc_underline(input_dir, id0):
