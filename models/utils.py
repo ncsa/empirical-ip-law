@@ -188,7 +188,7 @@ def tokenize_and_weight(text, tokenizer, weight, max_length=128):
 def combine_tokens(tokenizer, df, col_list, weight_list, max_length=128):
   tok_input_id_list = []
   tok_attention_mask_list = []
-  for ii in len(weight_list):
+  for ii in range(len(weight_list)):
     tokenized_X = tokenize_and_weight(df[col[ii]].tolist(), tokenizer, weight_list[ii])
     tok_input_id_list.append(tokenized_X['input_ids'])
     tok_attention_mask_list.append(tokenized_X['attention_mask'])
