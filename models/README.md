@@ -1,6 +1,6 @@
 * code of model training will be stored here.
 * need to get a token from [huggingface](https://huggingface.co/settings/tokens)
-* **current blocker: setup GPU**
+* make sure cuda is installed / module cuda is loaded, and pytorch is the GPU version. 
 
 
 
