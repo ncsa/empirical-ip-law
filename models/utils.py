@@ -7,12 +7,11 @@ import os.path
 import torch
 from torch.utils.data import TensorDataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from datasets import Dataset
 
 from transformers import TrainingArguments
 from transformers import Trainer
 
-from sklearn import train_test_split
+from sklearn.model_selection import train_test_split
 
 # make sure dir names is end with one '/'. 
 def dir_valid(input_dir):
